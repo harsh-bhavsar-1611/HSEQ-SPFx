@@ -72,15 +72,39 @@ The `.gitignore` already excludes the important generated artifacts, including:
 - `temp`
 - `*.sppkg`
 
-## Suggested first push
+## GitHub Actions setup
 
-After Git is initialized and the remote is configured:
+This repository now includes:
 
-```powershell
-git add .
-git commit -m "Initial SPFx HSEQ solution"
-git push -u origin main
-```
+- [ci.yml](./.github/workflows/ci.yml)
+  - build validation for pull requests and non-`main` pushes
+- [deploy.yml](./.github/workflows/deploy.yml)
+  - multi-stage deployment flow for `Development`, `Staging`, and `Production`
+
+### Required GitHub environments
+
+Create these repository environments in GitHub:
+
+- `Development`
+- `Staging`
+- `Production`
+
+For `Staging` and `Production`, add required reviewers if you want approval gates before deployment.
+
+### Required GitHub secrets
+
+Add these environment secrets to each environment:
+
+- `CLIENT_ID`
+- `TENANT_ID`
+- `CLIENT_SECRET`
+
+### Deployment notes
+
+- the workflow builds the `.sppkg` package from the SPFx solution
+- the deploy jobs install the Microsoft 365 CLI and deploy the package to the SharePoint app catalog
+- the workflow currently uses app-only secret authentication
+- the package path is taken from the generated `solution/*.sppkg` output in this repo
 
 ## Remote repository
 
