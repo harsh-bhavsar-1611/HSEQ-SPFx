@@ -1,0 +1,80 @@
+name: Enterprise Project Automation - Multi-Stage
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install
+        run: npm install
+
+      - name: Heft Build & Package
+        run: |
+          npx heft build --production
+          npx heft package-solution --production
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spfx-package
+          path: sharepoint/solution/*.sppkg
+
+  deploy-dev:
+    needs: build
+    environment: Development
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spfx-package
+
+      - name: Deploy to SharePoint
+        uses: pnp/action-cli-deploy@v3
+        with:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          APP_ID: ${{ secrets.CLIENT_ID }}
+          TENANT: ${{ secrets.TENANT_ID }}
+          SECRET: ${{ secrets.CLIENT_SECRET }}
+
+  deploy-staging:
+    needs: deploy-dev
+    environment: Staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spfx-package
+
+      - name: Deploy to Staging
+        uses: pnp/action-cli-deploy@v3
+        with:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          APP_ID: ${{ secrets.CLIENT_ID }}
+          TENANT: ${{ secrets.TENANT_ID }}
+          SECRET: ${{ secrets.CLIENT_SECRET }}
+
+  deploy-prod:
+    needs: deploy-staging
+    environment: Production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spfx-package
+
+      - name: Deploy to Prod
+        uses: pnp/action-cli-deploy@v3
+        with:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          APP_ID: ${{ secrets.CLIENT_ID }}
+          TENANT: ${{ secrets.TENANT_ID }}
+          SECRET: ${{ secrets.CLIENT_SECRET }}
