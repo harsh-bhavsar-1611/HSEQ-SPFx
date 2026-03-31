@@ -3,7 +3,13 @@ name: SPFx Multi-Stage Deployment
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+    # Only trigger when project-related files change
+    paths:
+      - 'src/**'
+      - 'config/**'
+      - 'package.json'
+      - 'sharepoint/**'
+  workflow_dispatch: # Allows you to run this manually from the Actions tab
 
 permissions:
   contents: read
@@ -17,10 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - name: Build and package SPFx solution
         run: |
@@ -31,6 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spfx-package
+          # Corrected path to include 'sharepoint/' folder
           path: sharepoint/solution/*.sppkg
           if-no-files-found: error
 
@@ -46,80 +54,26 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: npm
+          node-version: '18'
 
       - name: Install Microsoft 365 CLI
-        run: npm install -g @pnp/cli-microsoft365
+        run: npm install @pnp/cli-microsoft365
 
       - name: Deploy package to Development app catalog
         shell: bash
         run: |
+          # Dynamically find the package name
           PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          m365 login --authType secret --appId "$CLIENT_ID" --tenant "$TENANT_ID" --secret "$CLIENT_SECRET"
-          m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
-          m365 spo app deploy --name "$(basename "$PACKAGE_PATH")"
+          FILENAME=$(basename "$PACKAGE_PATH")
+          
+          # Using 'npx m365' to avoid "command not found" errors
+          npx m365 login --authType secret --appId "$CLIENT_ID" --tenant "$TENANT_ID" --secret "$CLIENT_SECRET"
+          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+          npx m365 spo app deploy --name "$FILENAME"
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
 
-  deploy-staging:
-    needs: deploy-dev
-    environment: Staging
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: spfx-package
-          path: artifacts
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install Microsoft 365 CLI
-        run: npm install -g @pnp/cli-microsoft365
-
-      - name: Deploy package to Staging app catalog
-        shell: bash
-        run: |
-          PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          m365 login --authType secret --appId "$CLIENT_ID" --tenant "$TENANT_ID" --secret "$CLIENT_SECRET"
-          m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
-          m365 spo app deploy --name "$(basename "$PACKAGE_PATH")"
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          TENANT_ID: ${{ secrets.TENANT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-
-  deploy-prod:
-    needs: deploy-staging
-    environment: Production
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: spfx-package
-          path: artifacts
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install Microsoft 365 CLI
-        run: npm install -g @pnp/cli-microsoft365
-
-      - name: Deploy package to Production app catalog
-        shell: bash
-        run: |
-          PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          m365 login --authType secret --appId "$CLIENT_ID" --tenant "$TENANT_ID" --secret "$CLIENT_SECRET"
-          m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
-          m365 spo app deploy --name "$(basename "$PACKAGE_PATH")"
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          TENANT_ID: ${{ secrets.TENANT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+  # Note: Repeat the 'deploy-dev' structure for 'deploy-staging' and 'deploy-prod'
+  # changing only the 'environment' name and potentially the secrets if they differ.

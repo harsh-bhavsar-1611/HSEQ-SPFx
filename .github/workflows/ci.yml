@@ -2,8 +2,14 @@ name: SPFx CI
 
 on:
   pull_request:
+    branches: [main]
   push:
     branches-ignore: [main]
+    # Only run if actual code changes, not documentation or the workflow itself
+    paths-ignore:
+      - '.github/workflows/**'
+      - '**.md'
+      - '.gitignore'
 
 jobs:
   validate:
@@ -13,11 +19,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: npm
+          node-version: '22' # Stable version for SPFx
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        # Uses 'npm install' if package-lock.json is missing, else 'npm ci'
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - name: Validate clean build
         run: npx heft build --clean
