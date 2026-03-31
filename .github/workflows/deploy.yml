@@ -3,13 +3,12 @@ name: SPFx Multi-Stage Deployment
 on:
   push:
     branches: [main]
-    # Only trigger when project-related files change
     paths:
       - 'src/**'
       - 'config/**'
       - 'package.json'
       - 'sharepoint/**'
-  workflow_dispatch: # Allows you to run this manually from the Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,7 +37,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spfx-package
-          # Corrected path to include 'sharepoint/' folder
           path: sharepoint/solution/*.sppkg
           if-no-files-found: error
 
@@ -56,35 +54,34 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Microsoft 365 CLI (pinned, local)
-        run: npm i --no-audit --no-fund --save-dev @pnp/cli-microsoft365@6.0.0
+      - name: Install Microsoft 365 CLI
+        run: npm install @pnp/cli-microsoft365
 
-      - name: Deploy to Development (with diagnostics)
+      - name: Deploy to Development
         shell: bash
-        env:
-          CLIMICROSOFT365_DEBUG: "1"
         run: |
-          set -Eeuo pipefail
-          set -x
-          trap 'echo "::error::Failed on line $LINENO: $BASH_COMMAND"' ERR
-
-          M365="./node_modules/.bin/m365"
-
-          node -v
-          npm -v
-          "$M365" --version
-
+          set -e
+          # 1. Locate the package
           PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          [ -n "${PACKAGE_PATH:-}" ] || (echo "::error::No .sppkg found"; exit 1)
           FILENAME=$(basename "$PACKAGE_PATH")
+          
+          # 2. Write the private key to a file safely
+          cat <<EOF > private.key
+          ${{ secrets.CERT_PRIVATE_KEY }}
+          EOF
+          
+          # 3. Login using npx m365 (This fixes the 'executable not found' error)
+          npx m365 login --authType certificate --appId "${{ secrets.CLIENT_ID }}" --tenant "${{ secrets.TENANT_ID }}" --certificateFile private.key --thumbprint "${{ secrets.CERT_THUMBPRINT }}"
+          
+          # 4. Deploy to SharePoint
+          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+          npx m365 spo app deploy --name "$FILENAME"
+          
+          # 5. Cleanup
+          rm private.key
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
 
-          "$M365" login \
-            --authType certificate \
-            --appId "${{ secrets.CLIENT_ID }}" \
-            --tenant "${{ secrets.TENANT_ID }}" \
-            --certificateBase64Encoded "${{ secrets.CERT_PFX_BASE64 }}" \
-            --thumbprint "${{ secrets.CERT_THUMBPRINT }}" \
-            --debug
-
-          "$M365" spo app add --filePath "$PACKAGE_PATH" --overwrite --debug
-          "$M365" spo app deploy --name "$FILENAME" --debug
+  # Note: Repeat the 'deploy-dev' logic for 'deploy-staging' and 'deploy-prod' 
+  # by copying the steps and changing the environment name.
