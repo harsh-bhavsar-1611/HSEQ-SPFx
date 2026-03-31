@@ -10,19 +10,29 @@ export const HSEQ_CSS = `
 .header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid #e1e1e1;
   background: #f3f2f1;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+.headerTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .contentWrapper {
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 .sidebar {
+  flex: 0 0 250px;
   width: 250px;
   border-right: 1px solid #e1e1e1;
   overflow-y: auto;
@@ -46,6 +56,7 @@ export const HSEQ_CSS = `
   flex-direction: column;
   overflow-y: auto;
   background: #fff;
+  min-width: 0;
 }
 
 .sectionHeader {
@@ -64,6 +75,26 @@ export const HSEQ_CSS = `
   padding: 8px 0;
   background: transparent;
   border-bottom: 1px solid #e1e1e1;
+}
+
+.pageSection {
+  padding: 16px;
+}
+
+.detailsListWrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #edebe9;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.detailsListWrap .ms-DetailsList {
+  min-width: 760px;
+}
+
+.mobileOverlay {
+  display: none;
 }
 
 .formPanel .ms-Panel-main {
@@ -261,6 +292,18 @@ export const HSEQ_CSS = `
 }
 
 @media (max-width: 768px) {
+  .header {
+    padding: 10px 12px;
+  }
+
+  .headerTitle {
+    font-size: 20px;
+  }
+
+  .pageSection {
+    padding: 12px;
+  }
+
   .sidebar {
     position: absolute;
     left: 0;
@@ -270,18 +313,51 @@ export const HSEQ_CSS = `
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
   }
 
-  .collapsed {
-    left: -250px;
-    width: 250px;
+  .mobileSidebar {
+    width: min(84vw, 300px);
+    left: 0;
+    transform: translateX(0);
+    transition: transform 0.25s ease;
+  }
+
+  .mobileSidebar.collapsed {
+    left: 0;
+    width: min(84vw, 300px);
+    transform: translateX(-100%);
+    border-right: 1px solid #e1e1e1;
   }
 
   .mainContent {
     width: 100%;
   }
 
+  .mobileOverlay {
+    display: block;
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(15, 23, 42, 0.32);
+    z-index: 90;
+  }
+
+  .commandBar .ms-CommandBar-primaryCommand {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .commandBar .ms-CommandBarItem-link {
+    min-height: 38px;
+  }
+
+  .detailsListWrap {
+    margin: 0 -4px;
+  }
+
   .formPanel .ms-Panel-main {
     width: 100vw !important;
     max-width: none;
+    min-width: 0;
   }
 
   .formPanel .ms-Panel-header {
@@ -307,6 +383,33 @@ export const HSEQ_CSS = `
   .formActions {
     padding: 16px 18px 20px;
     flex-wrap: wrap;
+  }
+
+  .formActions .ms-Button {
+    flex: 1 1 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerTitle {
+    font-size: 18px;
+  }
+
+  .formTabs .ms-Pivot {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .formTabs .ms-Pivot-link {
+    padding: 0 10px;
+  }
+
+  .tabBody {
+    padding: 14px;
+  }
+
+  .formActions {
+    padding: 14px;
   }
 }
 `;

@@ -39,9 +39,15 @@ import type { IHseqRecord } from './models';
 import { HSEQ_CSS } from './hseqCss';
 
 type SelectedModule = typeof HSEQ_NAV_ITEMS[number] | undefined;
+const MOBILE_BREAKPOINT = 768;
+
+function getIsMobileViewport(): boolean {
+  return typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT;
+}
 
 const HSEQ: React.FC<IHSEQProps> = (props) => {
-  const [navCollapsed, setNavCollapsed] = React.useState<boolean>(false);
+  const [isMobile, setIsMobile] = React.useState<boolean>(getIsMobileViewport());
+  const [navCollapsed, setNavCollapsed] = React.useState<boolean>(getIsMobileViewport());
   const [selectedModule, setSelectedModule] = React.useState<SelectedModule>(HSEQ_NAV_ITEMS[0]);
   const [records, setRecords] = React.useState<IHseqRecord[]>([
     {
@@ -77,11 +83,35 @@ const HSEQ: React.FC<IHSEQProps> = (props) => {
   const [successMessage, setSuccessMessage] = React.useState<string>('');
   const [activeFormTab, setActiveFormTab] = React.useState<'general' | 'internal'>('general');
 
+  React.useEffect(() => {
+    const handleResize = (): void => {
+      const nextIsMobile = getIsMobileViewport();
+      setIsMobile(nextIsMobile);
+      setNavCollapsed(nextIsMobile);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const resetForm = (): void => {
     setFormData(EMPTY_RECORD);
     setEditingId(undefined);
     setActiveFormTab('general');
     setShowForm(false);
+  };
+
+  const handleToggleNav = (): void => {
+    setNavCollapsed((current) => !current);
+  };
+
+  const handleSelectModule = (item: SelectedModule): void => {
+    setSelectedModule(item);
+    if (isMobile) {
+      setNavCollapsed(true);
+    }
   };
 
   const handleFormChange = (field: keyof IHseqRecord, value: string | number | boolean): void => {
@@ -268,7 +298,7 @@ const HSEQ: React.FC<IHSEQProps> = (props) => {
     url: '',
     iconProps: { iconName: item.iconName },
     key: `nav-${index}`,
-    onClick: () => setSelectedModule(item)
+    onClick: () => handleSelectModule(item)
   }));
 
   const commandItems: ICommandBarItemProps[] = [
@@ -280,6 +310,9 @@ const HSEQ: React.FC<IHSEQProps> = (props) => {
         resetForm();
         setActiveFormTab('general');
         setShowForm(true);
+        if (isMobile) {
+          setNavCollapsed(true);
+        }
       }
     },
     {
@@ -343,20 +376,29 @@ const HSEQ: React.FC<IHSEQProps> = (props) => {
       <div className="header">
         <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 12 }}>
           <IconButton
-            iconProps={{ iconName: navCollapsed ? 'ChevronRight' : 'ChevronLeft' }}
+            iconProps={{ iconName: isMobile ? 'GlobalNavButton' : (navCollapsed ? 'ChevronRight' : 'ChevronLeft') }}
             title="Toggle Sidebar"
-            onClick={() => setNavCollapsed(!navCollapsed)}
+            onClick={handleToggleNav}
             styles={{ root: { fontSize: '18px' } }}
           />
-          <Text variant="xLarge" block style={{ fontWeight: 600 }}>
+          <Text variant="xLarge" block style={{ fontWeight: 600 }} className="headerTitle">
             {selectedModule?.label || 'HSEQ Dashboard'}
           </Text>
         </Stack>
       </div>
 
       <div className="contentWrapper">
+        {isMobile && !navCollapsed && (
+          <button
+            type="button"
+            className="mobileOverlay"
+            aria-label="Close navigation"
+            onClick={() => setNavCollapsed(true)}
+          />
+        )}
+
         {/* Sidebar Navigation */}
-        <nav className={`sidebar ${navCollapsed ? 'collapsed' : ''}`}>
+        <nav className={`sidebar ${isMobile ? 'mobileSidebar' : ''} ${navCollapsed ? 'collapsed' : ''}`}>
           <div className="navContainer">
             <Nav
               groups={[
@@ -385,7 +427,7 @@ const HSEQ: React.FC<IHSEQProps> = (props) => {
             </MessageBar>
           )}
 
-          <Stack tokens={{ childrenGap: 16 }} styles={{ root: { padding: '16px' } }}>
+          <Stack tokens={{ childrenGap: 16 }} className="pageSection">
             {/* Header Info */}
             <div>
               <Text variant="large" block style={{ fontWeight: 500 }}>
@@ -397,18 +439,22 @@ const HSEQ: React.FC<IHSEQProps> = (props) => {
             </div>
 
             {/* Command Bar */}
-            <CommandBar items={commandItems} />
+            <div className="commandBar">
+              <CommandBar items={commandItems} overflowButtonProps={{ ariaLabel: 'More actions' }} />
+            </div>
 
             {/* Records List */}
             {records.length > 0 ? (
-              <DetailsList
-                items={records}
-                columns={actionColumns}
-                setKey="set-items"
-                layoutMode={DetailsListLayoutMode.fixedColumns}
-                selectionMode={SelectionMode.none}
-                compact
-              />
+              <div className="detailsListWrap">
+                <DetailsList
+                  items={records}
+                  columns={actionColumns}
+                  setKey="set-items"
+                  layoutMode={DetailsListLayoutMode.fixedColumns}
+                  selectionMode={SelectionMode.none}
+                  compact
+                />
+              </div>
             ) : (
               <Stack
                 horizontalAlign="center"
