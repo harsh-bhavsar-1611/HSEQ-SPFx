@@ -59,21 +59,24 @@ jobs:
       - name: Install Microsoft 365 CLI
         run: npm install @pnp/cli-microsoft365
 
-      - name: Deploy package to Development app catalog
+      - name: Deploy to Development
         shell: bash
         run: |
-          # Dynamically find the package name
           PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
           FILENAME=$(basename "$PACKAGE_PATH")
           
-          # Using 'npx m365' to avoid "command not found" errors
-          npx m365 login --authType secret --appId "$CLIENT_ID" --tenant "$TENANT_ID" --secret "$CLIENT_SECRET"
+          # 1. Create a temporary file for the private key in the runner
+          echo "${{ secrets.CERT_PRIVATE_KEY }}" > private.key
+          
+          # 2. Login using the Certificate and Thumbprint
+          npx m365 login --authType certificate --appId "${{ secrets.CLIENT_ID }}" --tenant "${{ secrets.TENANT_ID }}" --certificateFile private.key --thumbprint "${{ secrets.CERT_THUMBPRINT }}"
+          
+          # 3. Deploy to SharePoint
           npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
           npx m365 spo app deploy --name "$FILENAME"
+          
+          # 4. Clean up the key file for security
+          rm private.key
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-
-  # Note: Repeat the 'deploy-dev' structure for 'deploy-staging' and 'deploy-prod'
-  # changing only the 'environment' name and potentially the secrets if they differ.
