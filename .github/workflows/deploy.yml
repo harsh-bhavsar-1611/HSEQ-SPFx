@@ -56,41 +56,29 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install Microsoft 365 CLI (pinned, local)
+        run: npm i --no-audit --no-fund --save-dev @pnp/cli-microsoft365@6.0.0
+
       - name: Deploy to Development (with diagnostics)
         shell: bash
         env:
-          # Enable verbose output from m365 CLI
           CLIMICROSOFT365_DEBUG: "1"
         run: |
-          # Print each command (good for pinpointing failures)
           set -Eeuo pipefail
           set -x
-
-          echo "Node: $(node -v)"
-          echo "NPM:  $(npm -v)"
-
-          echo "=== Listing artifacts ==="
-          ls -la artifacts || true
-          find artifacts -maxdepth 3 -type f -print || true
-
-          PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          if [ -z "${PACKAGE_PATH:-}" ]; then
-            echo "::error::No .sppkg found in artifacts"
-            exit 1
-          fi
-          echo "PACKAGE_PATH=$PACKAGE_PATH"
-
-          FILENAME=$(basename "$PACKAGE_PATH")
-          echo "FILENAME=$FILENAME"
-
-          echo "=== m365 CLI version ==="
-          npx --yes @pnp/cli-microsoft365 --version
-
-          # On any failure, print a clear message with line number + last command
           trap 'echo "::error::Failed on line $LINENO: $BASH_COMMAND"' ERR
 
-          echo "=== Logging in to Microsoft 365 (debug enabled) ==="
-          npx --yes @pnp/cli-microsoft365 login \
+          M365="./node_modules/.bin/m365"
+
+          node -v
+          npm -v
+          "$M365" --version
+
+          PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+          [ -n "${PACKAGE_PATH:-}" ] || (echo "::error::No .sppkg found"; exit 1)
+          FILENAME=$(basename "$PACKAGE_PATH")
+
+          "$M365" login \
             --authType certificate \
             --appId "${{ secrets.CLIENT_ID }}" \
             --tenant "${{ secrets.TENANT_ID }}" \
@@ -98,15 +86,5 @@ jobs:
             --thumbprint "${{ secrets.CERT_THUMBPRINT }}" \
             --debug
 
-          echo "=== Adding app to app catalog (debug enabled) ==="
-          npx --yes @pnp/cli-microsoft365 spo app add \
-            --filePath "$PACKAGE_PATH" \
-            --overwrite \
-            --debug
-
-          echo "=== Deploying app (debug enabled) ==="
-          npx --yes @pnp/cli-microsoft365 spo app deploy \
-            --name "$FILENAME" \
-            --debug
-
-          echo "=== Deployment finished successfully ==="
+          "$M365" spo app add --filePath "$PACKAGE_PATH" --overwrite --debug
+          "$M365" spo app deploy --name "$FILENAME" --debug
