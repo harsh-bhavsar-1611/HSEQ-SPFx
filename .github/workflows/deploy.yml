@@ -61,27 +61,147 @@ jobs:
         shell: bash
         run: |
           set -e
+          echo "--- Checking Artifacts ---"
+          ls -R artifacts
+          
           # 1. Locate the package
           PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+          
+          if [ -z "$PACKAGE_PATH" ]; then
+            echo "Error: No .sppkg file found in artifacts directory."
+            exit 1
+          fi
+          
           FILENAME=$(basename "$PACKAGE_PATH")
+          echo "Found package: $FILENAME at $PACKAGE_PATH"
           
-          # 2. Write the private key to a file safely
-          cat <<EOF > private.key
-          ${{ secrets.CERT_PRIVATE_KEY }}
-          EOF
+          # 2. Login using certificate (Base64 version is more robust in CI)
+          echo "Logging into Microsoft 365..."
+          npx m365 login --authType certificate \
+            --appId "${{ secrets.CLIENT_ID }}" \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --certificateBase64Encoded "${{ secrets.CERT_PRIVATE_KEY }}" \
+            --thumbprint "${{ secrets.CERT_THUMBPRINT }}" \
+            --debug
           
-          # 3. Login using npx m365 (This fixes the 'executable not found' error)
-          npx m365 login --authType certificate --appId "${{ secrets.CLIENT_ID }}" --tenant "${{ secrets.TENANT_ID }}" --certificateFile private.key --thumbprint "${{ secrets.CERT_THUMBPRINT }}"
-          
-          # 4. Deploy to SharePoint
+          # 3. Deploy to SharePoint
+          echo "Adding app to SharePoint app catalog..."
           npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+          
+          echo "Deploying app..."
           npx m365 spo app deploy --name "$FILENAME"
           
-          # 5. Cleanup
-          rm private.key
+          echo "Deployment successful!"
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
 
-  # Note: Repeat the 'deploy-dev' logic for 'deploy-staging' and 'deploy-prod' 
-  # by copying the steps and changing the environment name.
+  # deploy-staging:
+  #   needs: build
+  #   environment: Staging
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: spfx-package
+  #         path: artifacts
+
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
+
+  #     - name: Install Microsoft 365 CLI
+  #       run: npm install @pnp/cli-microsoft365
+
+  #     - name: Deploy to Staging
+  #       shell: bash
+  #       run: |
+  #         set -e
+  #         echo "--- Checking Artifacts ---"
+  #         ls -R artifacts
+          
+  #         # 1. Locate the package
+  #         PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+          
+  #         if [ -z "$PACKAGE_PATH" ]; then
+  #           echo "Error: No .sppkg file found in artifacts directory."
+  #           exit 1
+  #         fi
+          
+  #         FILENAME=$(basename "$PACKAGE_PATH")
+  #         echo "Found package: $FILENAME at $PACKAGE_PATH"
+          
+  #         # 2. Login using certificate
+  #         echo "Logging into Microsoft 365..."
+  #         npx m365 login --authType certificate \
+  #           --appId "${{ secrets.STAGING_CLIENT_ID || secrets.CLIENT_ID }}" \
+  #           --tenant "${{ secrets.STAGING_TENANT_ID || secrets.TENANT_ID }}" \
+  #           --certificateBase64Encoded "${{ secrets.STAGING_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}" \
+  #           --thumbprint "${{ secrets.STAGING_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}"
+          
+  #         # 3. Deploy to SharePoint
+  #         echo "Adding app to SharePoint app catalog..."
+  #         npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+          
+  #         echo "Deploying app..."
+  #         npx m365 spo app deploy --name "$FILENAME"
+          
+  #         echo "Deployment successful!"
+  #       env:
+  #         CLIENT_ID: ${{ secrets.STAGING_CLIENT_ID || secrets.CLIENT_ID }}
+  #         TENANT_ID: ${{ secrets.STAGING_TENANT_ID || secrets.TENANT_ID }}
+
+  # deploy-prod:
+  #   needs: [deploy-dev, deploy-staging]
+  #   environment: Production
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: spfx-package
+  #         path: artifacts
+
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
+
+  #     - name: Install Microsoft 365 CLI
+  #       run: npm install @pnp/cli-microsoft365
+
+  #     - name: Deploy to Production
+  #       shell: bash
+  #       run: |
+  #         set -e
+  #         echo "--- Checking Artifacts ---"
+  #         ls -R artifacts
+          
+  #         # 1. Locate the package
+  #         PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+          
+  #         if [ -z "$PACKAGE_PATH" ]; then
+  #           echo "Error: No .sppkg file found in artifacts directory."
+  #           exit 1
+  #         fi
+          
+  #         FILENAME=$(basename "$PACKAGE_PATH")
+  #         echo "Found package: $FILENAME at $PACKAGE_PATH"
+          
+  #         # 2. Login using certificate
+  #         echo "Logging into Microsoft 365..."
+  #         npx m365 login --authType certificate \
+  #           --appId "${{ secrets.PROD_CLIENT_ID || secrets.CLIENT_ID }}" \
+  #           --tenant "${{ secrets.PROD_TENANT_ID || secrets.TENANT_ID }}" \
+  #           --certificateBase64Encoded "${{ secrets.PROD_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}" \
+  #           --thumbprint "${{ secrets.PROD_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}"
+          
+  #         # 3. Deploy to SharePoint
+  #         echo "Adding app to SharePoint app catalog..."
+  #         npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+          
+  #         echo "Deploying app..."
+  #         npx m365 spo app deploy --name "$FILENAME"
+          
+  #         echo "Deployment successful!"
+  #       env:
+  #         CLIENT_ID: ${{ secrets.PROD_CLIENT_ID || secrets.CLIENT_ID }}
+  #         TENANT_ID: ${{ secrets.PROD_TENANT_ID || secrets.TENANT_ID }}
