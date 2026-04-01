@@ -75,7 +75,7 @@ jobs:
           FILENAME=$(basename "$PACKAGE_PATH")
           echo "Found package: $FILENAME at $PACKAGE_PATH"
           
-          # 2. Login using certificate (File-based is more reliable for node-forge)
+          # 2. Login using certificate
           echo "Logging into Microsoft 365..."
           printf "%s" "$CERT_PRIVATE_KEY" > private.key
           
@@ -86,12 +86,14 @@ jobs:
             --thumbprint "$CERT_THUMBPRINT" \
             --debug
           
-          # 3. Deploy to SharePoint
+          # 3. Deploy to SharePoint (Tenant App Catalog)
+          # Note: If you want to deploy to a Site Collection App Catalog, add:
+          # --appCatalogScope site --appCatalogUrl "https://tenant.sharepoint.com/sites/site"
           echo "Adding app to SharePoint app catalog..."
-          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite --debug
           
           echo "Deploying app..."
-          npx m365 spo app deploy --name "$FILENAME"
+          npx m365 spo app deploy --name "$FILENAME" --debug
           
           # 4. Cleanup
           rm private.key
