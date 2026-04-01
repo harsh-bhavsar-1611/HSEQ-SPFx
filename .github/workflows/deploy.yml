@@ -100,120 +100,120 @@ jobs:
           CERT_PRIVATE_KEY: ${{ secrets.CERT_PRIVATE_KEY }}
           CERT_THUMBPRINT: ${{ secrets.CERT_THUMBPRINT }}
 
-  deploy-staging:
-    needs: build
-    environment: Staging
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: spfx-package
-          path: artifacts
+  # deploy-staging:
+  #   needs: build
+  #   environment: Staging
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: spfx-package
+  #         path: artifacts
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
 
-      - name: Install Microsoft 365 CLI
-        run: npm install @pnp/cli-microsoft365
+  #     - name: Install Microsoft 365 CLI
+  #       run: npm install @pnp/cli-microsoft365
 
-      - name: Deploy to Staging
-        shell: bash
-        run: |
-          set -e
-          echo "--- Checking Artifacts ---"
-          ls -R artifacts
+  #     - name: Deploy to Staging
+  #       shell: bash
+  #       run: |
+  #         set -e
+  #         echo "--- Checking Artifacts ---"
+  #         ls -R artifacts
           
-          # 1. Locate the package
-          PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+  #         # 1. Locate the package
+  #         PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
           
-          if [ -z "$PACKAGE_PATH" ]; then
-            echo "Error: No .sppkg file found in artifacts directory."
-            exit 1
-          fi
+  #         if [ -z "$PACKAGE_PATH" ]; then
+  #           echo "Error: No .sppkg file found in artifacts directory."
+  #           exit 1
+  #         fi
           
-          FILENAME=$(basename "$PACKAGE_PATH")
-          echo "Found package: $FILENAME at $PACKAGE_PATH"
+  #         FILENAME=$(basename "$PACKAGE_PATH")
+  #         echo "Found package: $FILENAME at $PACKAGE_PATH"
           
-          # 2. Login using certificate
-          echo "Logging into Microsoft 365..."
-          CLEANED_CERT=$(echo "$CERT_PRIVATE_KEY" | sed 's/-----[^-]*-----//g' | tr -d '\n\r ')
+  #         # 2. Login using certificate
+  #         echo "Logging into Microsoft 365..."
+  #         CLEANED_CERT=$(echo "$CERT_PRIVATE_KEY" | sed 's/-----[^-]*-----//g' | tr -d '\n\r ')
           
-          npx m365 login --authType certificate \
-            --appId "$CLIENT_ID" \
-            --tenant "$TENANT_ID" \
-            --certificateBase64Encoded "$CLEANED_CERT" \
-            --thumbprint "$CERT_THUMBPRINT"
+  #         npx m365 login --authType certificate \
+  #           --appId "$CLIENT_ID" \
+  #           --tenant "$TENANT_ID" \
+  #           --certificateBase64Encoded "$CLEANED_CERT" \
+  #           --thumbprint "$CERT_THUMBPRINT"
           
-          # 3. Deploy to SharePoint
-          echo "Adding app to SharePoint app catalog..."
-          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+  #         # 3. Deploy to SharePoint
+  #         echo "Adding app to SharePoint app catalog..."
+  #         npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
           
-          echo "Deploying app..."
-          npx m365 spo app deploy --name "$FILENAME"
+  #         echo "Deploying app..."
+  #         npx m365 spo app deploy --name "$FILENAME"
           
-          echo "Deployment successful!"
-        env:
-          CLIENT_ID: ${{ secrets.STAGING_CLIENT_ID || secrets.CLIENT_ID }}
-          TENANT_ID: ${{ secrets.STAGING_TENANT_ID || secrets.TENANT_ID }}
-          CERT_PRIVATE_KEY: ${{ secrets.STAGING_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}
-          CERT_THUMBPRINT: ${{ secrets.STAGING_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}
+  #         echo "Deployment successful!"
+  #       env:
+  #         CLIENT_ID: ${{ secrets.STAGING_CLIENT_ID || secrets.CLIENT_ID }}
+  #         TENANT_ID: ${{ secrets.STAGING_TENANT_ID || secrets.TENANT_ID }}
+  #         CERT_PRIVATE_KEY: ${{ secrets.STAGING_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}
+  #         CERT_THUMBPRINT: ${{ secrets.STAGING_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}
 
-  deploy-prod:
-    needs: [deploy-dev, deploy-staging]
-    environment: Production
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: spfx-package
-          path: artifacts
+  # deploy-prod:
+  #   needs: [deploy-dev, deploy-staging]
+  #   environment: Production
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: spfx-package
+  #         path: artifacts
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
 
-      - name: Install Microsoft 365 CLI
-        run: npm install @pnp/cli-microsoft365
+  #     - name: Install Microsoft 365 CLI
+  #       run: npm install @pnp/cli-microsoft365
 
-      - name: Deploy to Production
-        shell: bash
-        run: |
-          set -e
-          echo "--- Checking Artifacts ---"
-          ls -R artifacts
+  #     - name: Deploy to Production
+  #       shell: bash
+  #       run: |
+  #         set -e
+  #         echo "--- Checking Artifacts ---"
+  #         ls -R artifacts
           
-          # 1. Locate the package
-          PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+  #         # 1. Locate the package
+  #         PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
           
-          if [ -z "$PACKAGE_PATH" ]; then
-            echo "Error: No .sppkg file found in artifacts directory."
-            exit 1
-          fi
+  #         if [ -z "$PACKAGE_PATH" ]; then
+  #           echo "Error: No .sppkg file found in artifacts directory."
+  #           exit 1
+  #         fi
           
-          FILENAME=$(basename "$PACKAGE_PATH")
-          echo "Found package: $FILENAME at $PACKAGE_PATH"
+  #         FILENAME=$(basename "$PACKAGE_PATH")
+  #         echo "Found package: $FILENAME at $PACKAGE_PATH"
           
-          # 2. Login using certificate
-          echo "Logging into Microsoft 365..."
-          CLEANED_CERT=$(echo "$CERT_PRIVATE_KEY" | sed 's/-----[^-]*-----//g' | tr -d '\n\r ')
+  #         # 2. Login using certificate
+  #         echo "Logging into Microsoft 365..."
+  #         CLEANED_CERT=$(echo "$CERT_PRIVATE_KEY" | sed 's/-----[^-]*-----//g' | tr -d '\n\r ')
           
-          npx m365 login --authType certificate \
-            --appId "$CLIENT_ID" \
-            --tenant "$TENANT_ID" \
-            --certificateBase64Encoded "$CLEANED_CERT" \
-            --thumbprint "$CERT_THUMBPRINT"
+  #         npx m365 login --authType certificate \
+  #           --appId "$CLIENT_ID" \
+  #           --tenant "$TENANT_ID" \
+  #           --certificateBase64Encoded "$CLEANED_CERT" \
+  #           --thumbprint "$CERT_THUMBPRINT"
           
-          # 3. Deploy to SharePoint
-          echo "Adding app to SharePoint app catalog..."
-          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+  #         # 3. Deploy to SharePoint
+  #         echo "Adding app to SharePoint app catalog..."
+  #         npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
           
-          echo "Deploying app..."
-          npx m365 spo app deploy --name "$FILENAME"
+  #         echo "Deploying app..."
+  #         npx m365 spo app deploy --name "$FILENAME"
           
-          echo "Deployment successful!"
-        env:
-          CLIENT_ID: ${{ secrets.PROD_CLIENT_ID || secrets.CLIENT_ID }}
-          TENANT_ID: ${{ secrets.PROD_TENANT_ID || secrets.TENANT_ID }}
-          CERT_PRIVATE_KEY: ${{ secrets.PROD_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}
-          CERT_THUMBPRINT: ${{ secrets.PROD_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}
+  #         echo "Deployment successful!"
+  #       env:
+  #         CLIENT_ID: ${{ secrets.PROD_CLIENT_ID || secrets.CLIENT_ID }}
+  #         TENANT_ID: ${{ secrets.PROD_TENANT_ID || secrets.TENANT_ID }}
+  #         CERT_PRIVATE_KEY: ${{ secrets.PROD_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}
+  #         CERT_THUMBPRINT: ${{ secrets.PROD_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}
