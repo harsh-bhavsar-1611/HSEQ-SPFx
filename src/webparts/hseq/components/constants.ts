@@ -2,7 +2,7 @@ import type { IHseqNavItem, IHseqRecord } from './models';
 
 export const HSEQ_NAV_ITEMS: IHseqNavItem[] = [
   { label: 'To Do', iconName: 'TaskList' },
-  { label: 'Compliance Register', iconName: 'PageChecklist' },
+  { label: 'Compliance Register', iconName: 'ComplianceAudit' },
   { label: 'Training & Inductions', iconName: 'ReadingMode' },
   { label: 'Audit & Inspections', iconName: 'ClipboardList' },
   { label: 'Incidents', iconName: 'Warning' },

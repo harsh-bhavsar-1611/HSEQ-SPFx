@@ -36,14 +36,17 @@ export const HSEQ_CSS = `
   width: 250px;
   border-right: 1px solid #e1e1e1;
   overflow-y: auto;
-  transition: width 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: #faf9f8;
+  white-space: nowrap;
 }
 
 .collapsed {
+  flex: 0 0 0;
   width: 0;
   border-right: none;
-  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .navContainer {
