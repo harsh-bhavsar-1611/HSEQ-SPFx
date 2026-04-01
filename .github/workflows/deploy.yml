@@ -75,14 +75,14 @@ jobs:
           FILENAME=$(basename "$PACKAGE_PATH")
           echo "Found package: $FILENAME at $PACKAGE_PATH"
           
-          # 2. Login using certificate (Strip PEM headers if they exist)
+          # 2. Login using certificate (File-based is more reliable for node-forge)
           echo "Logging into Microsoft 365..."
-          CLEANED_CERT=$(echo "$CERT_PRIVATE_KEY" | sed 's/-----[^-]*-----//g' | tr -d '\n\r ')
+          printf "%s" "$CERT_PRIVATE_KEY" > private.key
           
           npx m365 login --authType certificate \
             --appId "$CLIENT_ID" \
             --tenant "$TENANT_ID" \
-            --certificateBase64Encoded "$CLEANED_CERT" \
+            --certificateFile private.key \
             --thumbprint "$CERT_THUMBPRINT" \
             --debug
           
@@ -93,6 +93,8 @@ jobs:
           echo "Deploying app..."
           npx m365 spo app deploy --name "$FILENAME"
           
+          # 4. Cleanup
+          rm private.key
           echo "Deployment successful!"
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
@@ -137,12 +139,12 @@ jobs:
           
   #         # 2. Login using certificate
   #         echo "Logging into Microsoft 365..."
-  #         CLEANED_CERT=$(echo "$CERT_PRIVATE_KEY" | sed 's/-----[^-]*-----//g' | tr -d '\n\r ')
+  #         printf "%s" "$CERT_PRIVATE_KEY" > private.key
           
   #         npx m365 login --authType certificate \
   #           --appId "$CLIENT_ID" \
   #           --tenant "$TENANT_ID" \
-  #           --certificateBase64Encoded "$CLEANED_CERT" \
+  #           --certificateFile private.key \
   #           --thumbprint "$CERT_THUMBPRINT"
           
   #         # 3. Deploy to SharePoint
@@ -152,6 +154,8 @@ jobs:
   #         echo "Deploying app..."
   #         npx m365 spo app deploy --name "$FILENAME"
           
+  #         # 4. Cleanup
+  #         rm private.key
   #         echo "Deployment successful!"
   #       env:
   #         CLIENT_ID: ${{ secrets.STAGING_CLIENT_ID || secrets.CLIENT_ID }}
@@ -196,12 +200,12 @@ jobs:
           
   #         # 2. Login using certificate
   #         echo "Logging into Microsoft 365..."
-  #         CLEANED_CERT=$(echo "$CERT_PRIVATE_KEY" | sed 's/-----[^-]*-----//g' | tr -d '\n\r ')
+  #         printf "%s" "$CERT_PRIVATE_KEY" > private.key
           
   #         npx m365 login --authType certificate \
   #           --appId "$CLIENT_ID" \
   #           --tenant "$TENANT_ID" \
-  #           --certificateBase64Encoded "$CLEANED_CERT" \
+  #           --certificateFile private.key \
   #           --thumbprint "$CERT_THUMBPRINT"
           
   #         # 3. Deploy to SharePoint
@@ -211,6 +215,8 @@ jobs:
   #         echo "Deploying app..."
   #         npx m365 spo app deploy --name "$FILENAME"
           
+  #         # 4. Cleanup
+  #         rm private.key
   #         echo "Deployment successful!"
   #       env:
   #         CLIENT_ID: ${{ secrets.PROD_CLIENT_ID || secrets.CLIENT_ID }}
