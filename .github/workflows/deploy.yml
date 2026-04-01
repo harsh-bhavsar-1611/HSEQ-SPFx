@@ -1,54 +1,34 @@
-name: SPFx Multi-Stage Deployment
+name: SPFx CD
 
 on:
-  push:
+  workflow_run:
+    workflows: ["SPFx CI"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'config/**'
-      - 'package.json'
-      - 'sharepoint/**'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  build:
+  deploy-dev:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    name: Deploy to Development
+    environment: Development
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-      - name: Build and package SPFx solution
-        run: |
-          npx heft build --production
-          npx heft package-solution --production
-
-      - name: Upload SPPKG artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: spfx-package
-          path: sharepoint/solution/*.sppkg
-          if-no-files-found: error
-
-  deploy-dev:
-    needs: build
-    environment: Development
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
+      # 1. Download artifact from the preceding CI workflow
+      - name: Download SPPKG artifact
+        uses: actions/download-artifact@v4
         with:
           name: spfx-package
           path: artifacts
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id || github.run_id }}
 
       - uses: actions/setup-node@v4
         with:
@@ -57,171 +37,55 @@ jobs:
       - name: Install Microsoft 365 CLI
         run: npm install @pnp/cli-microsoft365
 
-      - name: Deploy to Development
+      - name: Deploy to SharePoint
         shell: bash
         run: |
           set -e
           echo "--- Checking Artifacts ---"
           ls -R artifacts
           
-          # 1. Locate the package
+          # Locate the package
           PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          
           if [ -z "$PACKAGE_PATH" ]; then
-            echo "Error: No .sppkg file found in artifacts directory."
+            echo "Error: No .sppkg file found."
             exit 1
           fi
-          
           FILENAME=$(basename "$PACKAGE_PATH")
-          echo "Found package: $FILENAME at $PACKAGE_PATH"
           
-          # 2. Login using certificate
-          echo "Logging into Microsoft 365..."
+          # Login
           printf "%s" "$CERT_PRIVATE_KEY" > private.key
+          npx m365 login --authType certificate --appId "$CLIENT_ID" --tenant "$TENANT_ID" --certificateFile private.key --thumbprint "$CERT_THUMBPRINT"
           
-          npx m365 login --authType certificate \
-            --appId "$CLIENT_ID" \
-            --tenant "$TENANT_ID" \
-            --certificateFile private.key \
-            --thumbprint "$CERT_THUMBPRINT" \
-            --debug
+          # Skip Graph
+          npx m365 spo set --url "$SPO_SITE_URL"
           
-          # 3. Deploy to SharePoint (Tenant App Catalog)
-          # Note: If you want to deploy to a Site Collection App Catalog, add:
-          # --appCatalogScope site --appCatalogUrl "https://tenant.sharepoint.com/sites/site"
-          echo "Adding app to SharePoint app catalog..."
-          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite --debug
+          # Deploy
+          npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
+          npx m365 spo app deploy --name "$FILENAME"
           
-          echo "Deploying app..."
-          npx m365 spo app deploy --name "$FILENAME" --debug
-          
-          # 4. Cleanup
           rm private.key
-          echo "Deployment successful!"
+          echo "Deployment to Dev successful!"
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
           CERT_PRIVATE_KEY: ${{ secrets.CERT_PRIVATE_KEY }}
           CERT_THUMBPRINT: ${{ secrets.CERT_THUMBPRINT }}
+          SPO_SITE_URL: ${{ secrets.SPO_SITE_URL }}
 
   # deploy-staging:
-  #   needs: build
+  #   if: ${{ github.event_name == 'workflow_dispatch' }}
   #   environment: Staging
   #   runs-on: ubuntu-latest
   #   steps:
-  #     - uses: actions/download-artifact@v4
+  #     - name: Download artifact
+  #       uses: actions/download-artifact@v4
   #       with:
   #         name: spfx-package
   #         path: artifacts
-
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '22'
-
-  #     - name: Install Microsoft 365 CLI
-  #       run: npm install @pnp/cli-microsoft365
-
-  #     - name: Deploy to Staging
-  #       shell: bash
-  #       run: |
-  #         set -e
-  #         echo "--- Checking Artifacts ---"
-  #         ls -R artifacts
-          
-  #         # 1. Locate the package
-  #         PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          
-  #         if [ -z "$PACKAGE_PATH" ]; then
-  #           echo "Error: No .sppkg file found in artifacts directory."
-  #           exit 1
-  #         fi
-          
-  #         FILENAME=$(basename "$PACKAGE_PATH")
-  #         echo "Found package: $FILENAME at $PACKAGE_PATH"
-          
-  #         # 2. Login using certificate
-  #         echo "Logging into Microsoft 365..."
-  #         printf "%s" "$CERT_PRIVATE_KEY" > private.key
-          
-  #         npx m365 login --authType certificate \
-  #           --appId "$CLIENT_ID" \
-  #           --tenant "$TENANT_ID" \
-  #           --certificateFile private.key \
-  #           --thumbprint "$CERT_THUMBPRINT"
-          
-  #         # 3. Deploy to SharePoint
-  #         echo "Adding app to SharePoint app catalog..."
-  #         npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
-          
-  #         echo "Deploying app..."
-  #         npx m365 spo app deploy --name "$FILENAME"
-          
-  #         # 4. Cleanup
-  #         rm private.key
-  #         echo "Deployment successful!"
-  #       env:
-  #         CLIENT_ID: ${{ secrets.STAGING_CLIENT_ID || secrets.CLIENT_ID }}
-  #         TENANT_ID: ${{ secrets.STAGING_TENANT_ID || secrets.TENANT_ID }}
-  #         CERT_PRIVATE_KEY: ${{ secrets.STAGING_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}
-  #         CERT_THUMBPRINT: ${{ secrets.STAGING_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}
+  #     ...
 
   # deploy-prod:
-  #   needs: [deploy-dev, deploy-staging]
+  #   if: ${{ github.event_name == 'workflow_dispatch' }}
   #   environment: Production
   #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: spfx-package
-  #         path: artifacts
-
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '22'
-
-  #     - name: Install Microsoft 365 CLI
-  #       run: npm install @pnp/cli-microsoft365
-
-  #     - name: Deploy to Production
-  #       shell: bash
-  #       run: |
-  #         set -e
-  #         echo "--- Checking Artifacts ---"
-  #         ls -R artifacts
-          
-  #         # 1. Locate the package
-  #         PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
-          
-  #         if [ -z "$PACKAGE_PATH" ]; then
-  #           echo "Error: No .sppkg file found in artifacts directory."
-  #           exit 1
-  #         fi
-          
-  #         FILENAME=$(basename "$PACKAGE_PATH")
-  #         echo "Found package: $FILENAME at $PACKAGE_PATH"
-          
-  #         # 2. Login using certificate
-  #         echo "Logging into Microsoft 365..."
-  #         printf "%s" "$CERT_PRIVATE_KEY" > private.key
-          
-  #         npx m365 login --authType certificate \
-  #           --appId "$CLIENT_ID" \
-  #           --tenant "$TENANT_ID" \
-  #           --certificateFile private.key \
-  #           --thumbprint "$CERT_THUMBPRINT"
-          
-  #         # 3. Deploy to SharePoint
-  #         echo "Adding app to SharePoint app catalog..."
-  #         npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
-          
-  #         echo "Deploying app..."
-  #         npx m365 spo app deploy --name "$FILENAME"
-          
-  #         # 4. Cleanup
-  #         rm private.key
-  #         echo "Deployment successful!"
-  #       env:
-  #         CLIENT_ID: ${{ secrets.PROD_CLIENT_ID || secrets.CLIENT_ID }}
-  #         TENANT_ID: ${{ secrets.PROD_TENANT_ID || secrets.TENANT_ID }}
-  #         CERT_PRIVATE_KEY: ${{ secrets.PROD_CERT_PRIVATE_KEY || secrets.CERT_PRIVATE_KEY }}
-  #         CERT_THUMBPRINT: ${{ secrets.PROD_CERT_THUMBPRINT || secrets.CERT_THUMBPRINT }}
+  #   ...

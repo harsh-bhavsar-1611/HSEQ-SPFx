@@ -1,31 +1,44 @@
 name: SPFx CI
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'config/**'
+      - 'package.json'
+      - 'sharepoint/**'
   pull_request:
     branches: [main]
-  push:
-    branches-ignore: [main]
-    # Only run if actual code changes, not documentation or the workflow itself
-    paths-ignore:
-      - '.github/workflows/**'
-      - '**.md'
-      - '.gitignore'
+
+permissions:
+  contents: read
 
 jobs:
-  validate:
+  build:
+    name: Build and Package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22' # Stable version for SPFx
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
-        # Uses 'npm install' if package-lock.json is missing, else 'npm ci'
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-      - name: Validate clean build
-        run: npx heft build --clean
+      - name: Build SPFx solution
+        run: npx heft build --production
+
+      - name: Package SPFx solution
+        run: npx heft package-solution --production
+
+      - name: Upload SPPKG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spfx-package
+          path: sharepoint/solution/*.sppkg
+          if-no-files-found: error
