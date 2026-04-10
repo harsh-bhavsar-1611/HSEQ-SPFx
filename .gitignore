@@ -36,3 +36,10 @@ obj
 
 # Styles Generated Code
 *.scss.ts
+
+#key
+*.pem
+*.pfx
+*.cer
+extract.js
+

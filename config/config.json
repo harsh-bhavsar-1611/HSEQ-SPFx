@@ -17,6 +17,14 @@
           "manifest": "./src/webparts/hseq/HSEQWebPart.manifest.json"
         }
       ]
+    },
+    "site-navigation-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/siteNavigation/SiteNavigationWebPart.js",
+          "manifest": "./src/webparts/siteNavigation/SiteNavigationWebPart.manifest.json"
+        }
+      ]
     }
   },
   "externals": {},
