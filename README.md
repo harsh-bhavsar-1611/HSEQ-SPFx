@@ -97,13 +97,30 @@ Add these environment secrets to each environment:
 
 - `CLIENT_ID`
 - `TENANT_ID`
-- `CLIENT_SECRET`
+- `CERT_PRIVATE_KEY`
+- `CERT_THUMBPRINT`
+- `SPO_SITE_URL`
+
+### Optional GitHub environment variables
+
+If you want the workflow to automatically install or upgrade the app on selected sites after publishing to the tenant app catalog, add this environment variable:
+
+- `TARGET_SITE_URLS`
+
+Use either newline-separated, comma-separated, or semicolon-separated site URLs. Example:
+
+```text
+https://futurrizontech.sharepoint.com/sites/SkylineBuilders2
+https://futurrizontech.sharepoint.com/sites/AnotherSite
+```
 
 ### Deployment notes
 
 - the workflow builds the `.sppkg` package from the SPFx solution
 - the deploy jobs install the Microsoft 365 CLI and deploy the package to the SharePoint app catalog
-- the workflow currently uses app-only secret authentication
+- after deployment, the workflow can install or upgrade the app on the specific sites listed in `TARGET_SITE_URLS`
+- this avoids needing tenant-wide deployment when you only want selected sites to receive the app
+- the workflow currently uses app-only certificate authentication
 - the package path is taken from the generated `solution/*.sppkg` output in this repo
 
 ## Remote repository

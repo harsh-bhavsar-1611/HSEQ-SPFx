@@ -23,6 +23,7 @@ jobs:
 
       # 1. Download artifact from the preceding CI workflow
       - name: Download SPPKG artifact
+        if: ${{ github.event_name == 'workflow_run' }}
         uses: actions/download-artifact@v4
         with:
           name: spfx-package
@@ -33,6 +34,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+
+      - name: Install project dependencies
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Build and package for manual dispatch
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          npx heft build --production
+          npx heft package-solution --production
 
       - name: Install Microsoft 365 CLI
         run: npm install @pnp/cli-microsoft365
@@ -42,15 +55,24 @@ jobs:
         run: |
           set -e
           echo "--- Checking Artifacts ---"
-          ls -R artifacts
+          if [ -d artifacts ]; then
+            ls -R artifacts
+          fi
           
           # Locate the package
-          PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+          PACKAGE_PATH=""
+          if [ -d artifacts ]; then
+            PACKAGE_PATH=$(find artifacts -name "*.sppkg" | head -n 1)
+          fi
+          if [ -z "$PACKAGE_PATH" ] && [ -d sharepoint/solution ]; then
+            PACKAGE_PATH=$(find sharepoint/solution -name "*.sppkg" | head -n 1)
+          fi
           if [ -z "$PACKAGE_PATH" ]; then
             echo "Error: No .sppkg file found."
             exit 1
           fi
           FILENAME=$(basename "$PACKAGE_PATH")
+          PRODUCT_ID=$(node -p "require('./config/package-solution.json').solution.id")
           
           # Login
           printf "%s" "$CERT_PRIVATE_KEY" > private.key
@@ -62,6 +84,41 @@ jobs:
           # Deploy
           npx m365 spo app add --filePath "$PACKAGE_PATH" --overwrite
           npx m365 spo app deploy --name "$FILENAME"
+
+          APP_JSON=$(npx m365 spo app get --name "$FILENAME" --output json)
+          APP_ID=$(printf "%s" "$APP_JSON" | node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write(data.ID || '');")
+          APP_TITLE=$(printf "%s" "$APP_JSON" | node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write(data.Title || '');")
+
+          if [ -z "$APP_ID" ]; then
+            echo "Error: Could not resolve the deployed app ID from the tenant app catalog."
+            exit 1
+          fi
+
+          if [ -n "$TARGET_SITE_URLS" ]; then
+            echo "--- Installing or upgrading app on configured sites ---"
+            while IFS= read -r SITE_URL; do
+              SITE_URL=$(printf "%s" "$SITE_URL" | xargs)
+              if [ -z "$SITE_URL" ]; then
+                continue
+              fi
+
+              echo "Processing site: $SITE_URL"
+              INSTALLED_JSON=$(npx m365 spo app instance list --siteUrl "$SITE_URL" --output json)
+              IS_INSTALLED=$(printf "%s" "$INSTALLED_JSON" | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); const productId=(process.argv[1] || '').toLowerCase(); const found=items.find(item => String(item.ProductId || '').toLowerCase() === productId); process.stdout.write(found ? 'true' : 'false');" "$PRODUCT_ID")
+
+              if [ "$IS_INSTALLED" = "true" ]; then
+                echo "App '$APP_TITLE' is already installed on $SITE_URL. Attempting upgrade."
+                if ! npx m365 spo app upgrade --id "$APP_ID" --siteUrl "$SITE_URL" --appCatalogScope tenant; then
+                  echo "No upgrade was applied on $SITE_URL. The app may already be current."
+                fi
+              else
+                echo "Installing '$APP_TITLE' on $SITE_URL"
+                npx m365 spo app install --id "$APP_ID" --siteUrl "$SITE_URL" --appCatalogScope tenant
+              fi
+            done < <(printf "%s" "$TARGET_SITE_URLS" | tr ',;' '\n')
+          else
+            echo "No TARGET_SITE_URLS configured. Skipping site-specific install or upgrade."
+          fi
           
           rm private.key
           echo "Deployment to Dev successful!"
@@ -71,6 +128,7 @@ jobs:
           CERT_PRIVATE_KEY: ${{ secrets.CERT_PRIVATE_KEY }}
           CERT_THUMBPRINT: ${{ secrets.CERT_THUMBPRINT }}
           SPO_SITE_URL: ${{ secrets.SPO_SITE_URL }}
+          TARGET_SITE_URLS: ${{ vars.TARGET_SITE_URLS }}
 
   # deploy-staging:
   #   if: ${{ github.event_name == 'workflow_dispatch' }}
